@@ -2,11 +2,19 @@ general:
   poll_interval_seconds: 5
   bmc_boot_wait_timeout_seconds: 300
   bmc_probe_interval_seconds: 3
+  persist_manual_shutdown: false
+
+remote_api:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8080
 
 dell_r730xd:
   enabled: true
   initial_fan_speed_percent: 5
   power_on_delay_seconds: 2
+  shutdown_timeout_seconds: 180
+  force_off_on_timeout: true
   watchdog:
     max_consecutive_failures: 4
     emergency_temp_celsius: 78
@@ -31,6 +39,32 @@ dell_r730xd:
 mcafee_rmm3:
   enabled: true
   auto_power_on: true
+  shutdown_timeout_seconds: 120
+  force_off_on_timeout: true
+
+hdmi_monitor:
+  enabled: true
+  turn_on_time: "09:00"
+  turn_off_time: "22:00"
+  turn_off_on_system_shutdown: true
+
+gpio_panel:
+  enabled: false
+  button_pull_up: true
+  button_bounce_time: 0.2
+  power_toggle_button_pin: 17
+  power_on_button_pin: null
+  power_off_button_pin: null
+  monitor_toggle_button_pin: 27
+  status_led_pin: 22
+  alert_led_pin: 23
+  lcd:
+    enabled: false
+    i2c_expander: "PCF8574"
+    i2c_address: "0x27"
+    i2c_port: 1
+    cols: 16
+    rows: 2
 
 kiosk:
   initial_delay_seconds: 5

@@ -67,5 +67,21 @@ class IpmiClient:
         logger.warning(f"[{self.host}] Failed 'chassis power on': {out}")
         return False
 
+    def power_soft(self) -> bool:
+        success, out = self.run_command(["chassis", "power", "soft"])
+        if success:
+            logger.info(f"[{self.host}] Command 'chassis power soft' (ACPI shutdown) executed successfully.")
+            return True
+        logger.warning(f"[{self.host}] Failed 'chassis power soft': {out}")
+        return False
+
+    def power_off(self) -> bool:
+        success, out = self.run_command(["chassis", "power", "off"])
+        if success:
+            logger.info(f"[{self.host}] Command 'chassis power off' executed successfully.")
+            return True
+        logger.warning(f"[{self.host}] Failed 'chassis power off': {out}")
+        return False
+
     def raw_command(self, hex_bytes: List[str]) -> Tuple[bool, str]:
         return self.run_command(["raw"] + hex_bytes)

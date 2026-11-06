@@ -1,0 +1,3 @@
+*, *::before, *::after, html, body, a, button, input, select, textarea, [role="button"] {
+  cursor: none !important;
+}

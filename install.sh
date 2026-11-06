@@ -27,7 +27,10 @@ apt-get install -y \
     ipmitool \
     python3 \
     python3-yaml \
+    python3-gpiozero \
+    wlopm \
     unclutter \
+    xdotool \
     curl
 
 if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
@@ -58,6 +61,7 @@ fi
 
 chmod +x "$INSTALL_DIR/main.py"
 chmod +x "$INSTALL_DIR/kiosk/launch_kiosk.sh"
+ln -sf "$INSTALL_DIR/main.py" /usr/local/bin/homelabctl
 
 echo -e "\n${YELLOW}[3/5] Installing Systemd service idrac-silent-boot.service...${NC}"
 SERVICE_DEST="/etc/systemd/system/idrac-silent-boot.service"
@@ -92,17 +96,19 @@ echo -e "${GREEN}===============================================================
 echo -e "${GREEN}  Installation completed successfully!                            ${NC}"
 echo -e "${GREEN}==================================================================${NC}"
 echo -e "Next steps:"
-echo -e "1. Edit .env with your actual IPMI hosts, credentials, and Homarr URL:"
+echo -e "1. Edit .env with your actual IPMI hosts, credentials, Homarr URL, and API_TOKEN:"
 echo -e "   ${YELLOW}nano $INSTALL_DIR/.env${NC}"
 echo -e ""
-echo -e "2. Enable/disable devices or tune fan curves in config.yaml without touching Python code:"
+echo -e "2. Configure monitor schedule, GPIO pins, and fan curves in config.yaml:"
 echo -e "   ${YELLOW}nano $INSTALL_DIR/config.yaml${NC}"
 echo -e ""
-echo -e "3. Ensure your Dell R730xd BIOS is set to:"
-echo -e "   ${YELLOW}System BIOS Settings -> AC Power Recovery -> Power Off (Remain Off)${NC}"
+echo -e "3. Control your homelab via CLI or HTTP API:"
+echo -e "   ${YELLOW}homelabctl status${NC}"
+echo -e "   ${YELLOW}homelabctl power-off${NC}"
+echo -e "   ${YELLOW}homelabctl power-on${NC}"
+echo -e "   ${YELLOW}homelabctl monitor-off${NC}"
+echo -e "   ${YELLOW}homelabctl monitor-on${NC}"
 echo -e ""
-echo -e "4. Start the service now:"
-echo -e "   ${YELLOW}sudo systemctl start idrac-silent-boot.service${NC}"
-echo -e "   Check live logs:"
-echo -e "   ${YELLOW}sudo journalctl -u idrac-silent-boot.service -f${NC}"
+echo -e "4. Start or restart the service:"
+echo -e "   ${YELLOW}sudo systemctl restart idrac-silent-boot.service${NC}"
 echo -e "=================================================================="

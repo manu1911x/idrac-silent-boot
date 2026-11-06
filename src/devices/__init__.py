@@ -1,5 +1,7 @@
 from .base import BaseDevice
 from .dell_r730xd import DellR730xd
+from .gpio_panel import GpioPanel
+from .hdmi_monitor import HdmiMonitor
 from .mcafee_rmm3 import McAfeeRMM3
 
-__all__ = ["BaseDevice", "DellR730xd", "McAfeeRMM3"]
+__all__ = ["BaseDevice", "DellR730xd", "GpioPanel", "HdmiMonitor", "McAfeeRMM3"]

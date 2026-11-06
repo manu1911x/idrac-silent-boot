@@ -33,6 +33,7 @@ if [ -z "$CHROME_BIN" ]; then
 fi
 
 SPLASH_PATH="$SCRIPT_DIR/splash.html"
+EXT_PATH="$SCRIPT_DIR/hide_cursor_ext"
 TARGET_URL="file://$SPLASH_PATH?url=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$HOMARR_URL" 2>/dev/null || echo "$HOMARR_URL")"
 
 FLAGS=(
@@ -50,10 +51,20 @@ FLAGS=(
     --allow-file-access-from-files
     --autoplay-policy=no-user-gesture-required
     --password-store=basic
+    --load-extension="$EXT_PATH"
 )
 
 if command -v unclutter &>/dev/null; then
-    unclutter -idle 2 &
+    pkill -f unclutter 2>/dev/null || true
+    unclutter -idle 0 -root &
+fi
+
+if command -v xdotool &>/dev/null; then
+    xdotool mousemove 9999 9999 2>/dev/null || true
+fi
+
+if command -v ydotool &>/dev/null; then
+    ydotool mousemove -a -x 9999 -y 9999 2>/dev/null || true
 fi
 
 exec "$CHROME_BIN" "${FLAGS[@]}" "$TARGET_URL"

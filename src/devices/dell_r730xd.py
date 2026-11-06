@@ -10,8 +10,8 @@ logger = logging.getLogger("silent_boot.dell_r730xd")
 
 
 class DellR730xd(BaseDevice):
-    def __init__(self, name: str, config: Dict[str, Any], general_config: Dict[str, Any]):
-        super().__init__(name, config, general_config)
+    def __init__(self, name: str, config: Dict[str, Any], general_config: Dict[str, Any], controller: Optional[Any] = None):
+        super().__init__(name, config, general_config, controller)
 
         host = os.getenv("DELL_IDRAC_HOST", "192.168.1.120")
         user = os.getenv("DELL_IDRAC_USER", "root")
@@ -22,6 +22,8 @@ class DellR730xd(BaseDevice):
 
         self.initial_speed = self.config.get("initial_fan_speed_percent", 5)
         self.power_on_delay = self.config.get("power_on_delay_seconds", 2)
+        self.shutdown_timeout = self.config.get("shutdown_timeout_seconds", 180)
+        self.force_off_on_timeout = self.config.get("force_off_on_timeout", True)
         self.bmc_boot_timeout = self.general_config.get("bmc_boot_wait_timeout_seconds", 300)
         self.bmc_probe_interval = self.general_config.get("bmc_probe_interval_seconds", 3)
 
@@ -37,6 +39,7 @@ class DellR730xd(BaseDevice):
 
         self.manual_mode_active = False
         self.current_speed_percent: Optional[int] = None
+        self.last_temp: Optional[int] = None
         self.consecutive_failures = 0
         self.emergency_mode_active = False
 
@@ -112,18 +115,7 @@ class DellR730xd(BaseDevice):
 
         return None, readings
 
-    def on_boot(self) -> None:
-        logger.info(f"[{self.host}] Waiting for iDRAC to become available after power recovery...")
-        start_time = time.time()
-        while time.time() - start_time < self.bmc_boot_timeout:
-            if self.is_online():
-                logger.info(f"[{self.host}] iDRAC is online.")
-                break
-            time.sleep(self.bmc_probe_interval)
-        else:
-            logger.error(f"[{self.host}] Timeout ({self.bmc_boot_timeout}s) waiting for iDRAC.")
-            return
-
+    def power_on_device(self) -> bool:
         status = self.get_power_status()
         logger.info(f"[{self.host}] Chassis power status: {status}")
 
@@ -137,15 +129,69 @@ class DellR730xd(BaseDevice):
             time.sleep(self.power_on_delay)
 
             logger.info(f"[{self.host}] 3. Powering on chassis...")
-            self.power_on()
-        elif status == "on":
+            return self.power_on()
+
+        if status == "on":
             logger.info(f"[{self.host}] Server already on. Ensuring manual fan control mode...")
             self.enable_manual_control()
-            self.set_fan_speed_percent(self.initial_speed)
+            if self.current_speed_percent is None:
+                self.set_fan_speed_percent(self.initial_speed)
+            return True
+
+        return False
+
+    def power_off_device(self) -> bool:
+        status = self.get_power_status()
+        if status == "off":
+            logger.info(f"[{self.host}] Server is already off.")
+            return True
+
+        logger.info(f"[{self.host}] Initiating silent graceful ACPI shutdown...")
+        self.enable_manual_control()
+        self.set_fan_speed_percent(self.initial_speed)
+
+        if not self.ipmi.power_soft():
+            if self.force_off_on_timeout:
+                logger.warning(f"[{self.host}] Graceful shutdown command failed, forcing power off...")
+                return self.ipmi.power_off()
+            return False
+
+        start_time = time.time()
+        while time.time() - start_time < self.shutdown_timeout:
+            time.sleep(5)
+            current = self.get_power_status()
+            if current == "off":
+                logger.info(f"[{self.host}] Server gracefully powered off.")
+                return True
+
+        if self.force_off_on_timeout:
+            logger.warning(f"[{self.host}] Shutdown timeout ({self.shutdown_timeout}s) exceeded. Forcing power off...")
+            return self.ipmi.power_off()
+
+        return False
+
+    def on_boot(self) -> None:
+        logger.info(f"[{self.host}] Waiting for iDRAC to become available after power recovery...")
+        start_time = time.time()
+        while time.time() - start_time < self.bmc_boot_timeout:
+            if self.is_online():
+                logger.info(f"[{self.host}] iDRAC is online.")
+                break
+            time.sleep(self.bmc_probe_interval)
+        else:
+            logger.error(f"[{self.host}] Timeout ({self.bmc_boot_timeout}s) waiting for iDRAC.")
+            return
+
+        if self.controller and getattr(self.controller, "is_manually_shut_down", False):
+            logger.info(f"[{self.host}] Manual shutdown state is persisted. Keeping server off.")
+            return
+
+        self.power_on_device()
 
     def poll(self) -> None:
         status = self.get_power_status()
         if status != "on":
+            self.last_temp = None
             logger.debug(f"[{self.host}] Chassis is not on ({status}). Skipping thermal poll.")
             return
 
@@ -154,6 +200,7 @@ class DellR730xd(BaseDevice):
             self._handle_read_failure()
             return
 
+        self.last_temp = temp
         self._process_temperature(temp, readings)
 
     def _handle_read_failure(self) -> None:
@@ -222,6 +269,17 @@ class DellR730xd(BaseDevice):
                 self.set_fan_speed_percent(target_speed)
             else:
                 logger.debug(f"[{self.host}] CPU Temp: {temp}°C | Maintaining fan speed at {target_speed}%")
+
+    def get_status(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "host": self.host,
+            "power": self.get_power_status() or "unreachable",
+            "temperature_c": self.last_temp,
+            "fan_speed_percent": self.current_speed_percent,
+            "manual_mode": self.manual_mode_active,
+            "emergency_mode": self.emergency_mode_active,
+        }
 
     def cleanup(self) -> None:
         if self.manual_mode_active:
