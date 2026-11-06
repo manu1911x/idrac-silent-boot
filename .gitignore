@@ -1,0 +1,11 @@
+# Credenciales sensibles
+.env
+
+# Python bytecode y cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Logs del sistema
+*.log

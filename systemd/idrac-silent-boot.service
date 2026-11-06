@@ -1,0 +1,18 @@
+[Unit]
+Description=Dell iDRAC & McAfee RMM3 Silent Boot and Thermal Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=/usr/bin/python3 -m src.controller
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

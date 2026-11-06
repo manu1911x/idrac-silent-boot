@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciando Homelab Dashboard</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background-color: #0b0f19;
+      color: #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      cursor: default;
+    }
+
+    .container {
+      max-width: 580px;
+      width: 90%;
+      text-align: center;
+      background: rgba(18, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 48px 36px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+
+    .spinner-wrapper {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .spinner {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 3px solid rgba(59, 130, 246, 0.15);
+      border-top-color: #3b82f6;
+      animation: spin 1.2s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+    }
+
+    .spinner-glow {
+      position: absolute;
+      width: 80%;
+      height: 80%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0) 70%);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .icon-server {
+      font-size: 38px;
+      z-index: 2;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+      color: #ffffff;
+    }
+
+    p.subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    .badge-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .status-label {
+      color: #64748b;
+    }
+
+    .status-value {
+      font-weight: 600;
+      color: #38bdf8;
+      font-family: monospace;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .progress-bar {
+      width: 30%;
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #06b6d4);
+      border-radius: 999px;
+      animation: progress-indeterminate 2s infinite ease-in-out;
+    }
+
+    .status-message {
+      font-size: 14px;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 24px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background-color: #eab308;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 10px #eab308;
+    }
+
+    .dot.connected {
+      background-color: #22c55e;
+      box-shadow: 0 0 10px #22c55e;
+    }
+
+    .buttons {
+      margin-top: 24px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    button {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(0.85); opacity: 0.4; }
+      50% { transform: scale(1.15); opacity: 0.9; }
+    }
+
+    @keyframes progress-indeterminate {
+      0% { margin-left: 0%; width: 20%; }
+      50% { margin-left: 60%; width: 40%; }
+      100% { margin-left: 100%; width: 0%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner-wrapper">
+      <div class="spinner"></div>
+      <div class="spinner-glow"></div>
+      <div class="icon-server">🖥️</div>
+    </div>
+
+    <h1>Iniciando Centro de Control</h1>
+    <p class="subtitle">
+      El servidor Dell R730xd se encuentra completando su arranque silencioso.<br>
+      Esperando a que Homarr y los servicios del sistema estén activos.
+    </p>
+
+    <div class="badge-card">
+      <div class="status-row">
+        <span class="status-label">Destino:</span>
+        <span class="status-value" id="target-url">Cargando...</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Tiempo transcurrido:</span>
+        <span class="status-value" id="elapsed-time">0s</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Intentos de sondeo:</span>
+        <span class="status-value" id="attempt-count">#0</span>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar"></div>
+      </div>
+    </div>
+
+    <div class="status-message">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Comprobando conexión con el servidor...</span>
+    </div>
+
+    <div class="buttons">
+      <button onclick="checkNow()">Reintentar ahora</button>
+      <button onclick="forceRedirect()">Acceder directamente</button>
+    </div>
+  </div>
+
+  <script>
+    // Obtener la URL de Homarr desde el query param ?url= o usar fallback por defecto
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUrl = urlParams.get('url') || 'http://192.168.1.100:7575';
+    document.getElementById('target-url').innerText = targetUrl;
+
+    let attempts = 0;
+    let secondsElapsed = 0;
+    let timer = null;
+    let pollInterval = 3000;
+    let isConnected = false;
+
+    // Contador de tiempo transcurrido
+    setInterval(() => {
+      secondsElapsed++;
+      document.getElementById('elapsed-time').innerText = secondsElapsed + 's';
+    }, 1000);
+
+    async function probeHomarr() {
+      if (isConnected) return;
+      attempts++;
+      document.getElementById('attempt-count').innerText = '#' + attempts;
+      document.getElementById('status-text').innerText = 'Consultando disponibilidad de Homarr...';
+
+      try {
+        // Usamos mode: 'no-cors' con un timestamp anti-cache para comprobar disponibilidad de puerto
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+        const response = await fetch(targetUrl + '/?_t=' + Date.now(), {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        // Si se resolvió la petición (incluso como 'opaque' por no-cors), el servidor está respondiendo!
+        onConnected();
+      } catch (err) {
+        document.getElementById('status-text').innerText = 'Servidor en arranque. Reintentando en 3s...';
+        timer = setTimeout(probeHomarr, pollInterval);
+      }
+    }
+
+    function onConnected() {
+      isConnected = true;
+      const dot = document.getElementById('status-dot');
+      dot.className = 'dot connected';
+      document.getElementById('status-text').innerText = '¡Homarr detectado en línea! Redirigiendo...';
+
+      setTimeout(() => {
+        window.location.replace(targetUrl);
+      }, 1200);
+    }
+
+    function checkNow() {
+      if (timer) clearTimeout(timer);
+      probeHomarr();
+    }
+
+    function forceRedirect() {
+      window.location.replace(targetUrl);
+    }
+
+    // Iniciar el sondeo tras 3 segundos iniciales
+    setTimeout(probeHomarr, 3000);
+  </script>
+</body>
+</html>

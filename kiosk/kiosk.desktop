@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Homarr Kiosk
+Comment=Pantalla Kiosk de Homarr para Raspberry Pi
+Exec=/home/manu/idrac-silent-boot/kiosk/launch_kiosk.sh
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true
