@@ -27,7 +27,6 @@ class GpioPanel(BaseDevice):
         self.power_toggle_pin = self.config.get("power_toggle_button_pin")
         self.power_on_pin = self.config.get("power_on_button_pin")
         self.power_off_pin = self.config.get("power_off_button_pin")
-        self.monitor_toggle_pin = self.config.get("monitor_toggle_button_pin")
 
         self.status_led_pin = self.config.get("status_led_pin")
         self.alert_led_pin = self.config.get("alert_led_pin")
@@ -63,12 +62,6 @@ class GpioPanel(BaseDevice):
             btn.when_pressed = self._on_power_off_pressed
             self._buttons.append(btn)
             logger.info(f"[GPIO Panel] Bound power OFF button on BCM pin {self.power_off_pin}.")
-
-        if self.monitor_toggle_pin is not None:
-            btn = Button(int(self.monitor_toggle_pin), pull_up=self.pull_up, bounce_time=self.bounce_time)
-            btn.when_pressed = self._on_monitor_toggle_pressed
-            self._buttons.append(btn)
-            logger.info(f"[GPIO Panel] Bound monitor toggle button on BCM pin {self.monitor_toggle_pin}.")
 
         if self.status_led_pin is not None:
             self.status_led = LED(int(self.status_led_pin))
@@ -125,12 +118,6 @@ class GpioPanel(BaseDevice):
         logger.info("[GPIO Panel] Physical power OFF button pressed.")
         threading.Thread(target=self.controller.power_off_all, daemon=True).start()
 
-    def _on_monitor_toggle_pressed(self) -> None:
-        if not self.controller:
-            return
-        logger.info("[GPIO Panel] Physical monitor toggle button pressed.")
-        threading.Thread(target=self.controller.toggle_monitor, daemon=True).start()
-
     def _update_outputs(self) -> None:
         if not self.controller:
             return
@@ -140,7 +127,6 @@ class GpioPanel(BaseDevice):
 
         dell_info = devices.get("dell_r730xd", {})
         mcafee_info = devices.get("mcafee_rmm3", {})
-        mon_info = devices.get("hdmi_monitor", {})
 
         dell_on = dell_info.get("power") == "on"
         emergency = bool(dell_info.get("emergency_mode", False))
@@ -166,10 +152,9 @@ class GpioPanel(BaseDevice):
             fan_str = f"{fan}%" if fan is not None else "--%"
 
             fw_pwr = str(mcafee_info.get("power", "--")).upper()
-            mon_pwr = str(mon_info.get("power", "--")).upper()
 
             line1 = f"R730:{dell_pwr} {temp_str} {fan_str}"[:cols].ljust(cols)
-            line2 = f"FW:{fw_pwr} MON:{mon_pwr}"[:cols].ljust(cols)
+            line2 = f"FIREWALL: {fw_pwr}"[:cols].ljust(cols)
             lines = [line1, line2]
 
             if lines != self.last_lcd_lines:

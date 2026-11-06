@@ -1,4 +1,3 @@
-import datetime
 import json
 import tempfile
 import unittest
@@ -10,7 +9,6 @@ from unittest.mock import MagicMock
 from src.api import RemoteApiServer
 from src.controller import ControllerDaemon, parse_env_file
 from src.devices.dell_r730xd import DellR730xd
-from src.devices.hdmi_monitor import HdmiMonitor
 
 
 class TestSilentBootComponents(unittest.TestCase):
@@ -85,36 +83,12 @@ class TestSilentBootComponents(unittest.TestCase):
         dell._handle_read_failure()
         dell.restore_auto_control.assert_called_once()
 
-    def test_hdmi_monitor_schedule_and_power_outage(self):
-        cfg = {
-            "turn_on_time": "09:00",
-            "turn_off_time": "22:00",
-            "turn_off_on_system_shutdown": True,
-        }
-        mon = HdmiMonitor("hdmi_monitor", cfg, {})
-
-        self.assertFalse(mon.is_scheduled_on(datetime.time(3, 30)))
-        self.assertFalse(mon.is_scheduled_on(datetime.time(8, 59)))
-        self.assertTrue(mon.is_scheduled_on(datetime.time(9, 0)))
-        self.assertTrue(mon.is_scheduled_on(datetime.time(15, 0)))
-        self.assertTrue(mon.is_scheduled_on(datetime.time(21, 59)))
-        self.assertFalse(mon.is_scheduled_on(datetime.time(22, 0)))
-        self.assertFalse(mon.is_scheduled_on(datetime.time(23, 45)))
-
-        mon.is_scheduled_on = MagicMock(return_value=True)
-        mon.get_cec_power_status = MagicMock(return_value=False)
-        mon._apply_display_power = MagicMock(return_value=True)
-        mon.current_state = True
-        mon.evaluate_and_apply()
-        mon._apply_display_power.assert_called_once_with(True)
-
     def test_controller_device_filtering(self):
         daemon = ControllerDaemon.__new__(ControllerDaemon)
         daemon.config = {
             "general": {"poll_interval_seconds": 10},
             "dell_r730xd": {"enabled": True},
             "mcafee_rmm3": {"enabled": False},
-            "hdmi_monitor": {"enabled": True},
             "gpio_panel": {"enabled": False},
         }
         daemon.general_config = daemon.config["general"]
@@ -123,14 +97,12 @@ class TestSilentBootComponents(unittest.TestCase):
 
         device_names = [dev.name for dev in daemon.active_devices]
         self.assertIn("dell_r730xd", device_names)
-        self.assertIn("hdmi_monitor", device_names)
         self.assertNotIn("mcafee_rmm3", device_names)
         self.assertNotIn("gpio_panel", device_names)
 
     def test_remote_api_server(self):
         mock_ctrl = MagicMock()
         mock_ctrl.get_system_status.return_value = {"manually_shut_down": False, "devices": {}}
-        mock_ctrl.set_monitor_power.return_value = True
 
         api = RemoteApiServer(mock_ctrl, host="127.0.0.1", port=18089, api_token="testsecret")
         api.start()
@@ -146,9 +118,8 @@ class TestSilentBootComponents(unittest.TestCase):
                 data = json.loads(resp.read().decode("utf-8"))
                 self.assertFalse(data["manually_shut_down"])
 
-            with urllib.request.urlopen("http://127.0.0.1:18089/api/monitor/off?token=testsecret", timeout=2) as resp:
-                self.assertEqual(resp.status, 200)
-                mock_ctrl.set_monitor_power.assert_called_with(False)
+            with urllib.request.urlopen("http://127.0.0.1:18089/api/power/off?token=testsecret", timeout=2) as resp:
+                self.assertEqual(resp.status, 202)
         finally:
             api.stop()
 

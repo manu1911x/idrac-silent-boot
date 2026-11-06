@@ -69,21 +69,6 @@ class RemoteApiHandler(BaseHTTPRequestHandler):
             self._send_json(202, {"status": "accepted", "action": "power_off_all"})
             return
 
-        if path == "/api/monitor/on":
-            ok = self.controller.set_monitor_power(True)
-            self._send_json(200 if ok else 500, {"status": "ok" if ok else "failed", "monitor": "on"})
-            return
-
-        if path == "/api/monitor/off":
-            ok = self.controller.set_monitor_power(False)
-            self._send_json(200 if ok else 500, {"status": "ok" if ok else "failed", "monitor": "off"})
-            return
-
-        if path == "/api/monitor/toggle":
-            ok = self.controller.toggle_monitor()
-            self._send_json(200 if ok else 500, {"status": "ok" if ok else "failed", "action": "toggle_monitor"})
-            return
-
         if path.startswith("/api/device/"):
             parts = path.split("/")
             if len(parts) == 5 and parts[4] in ("on", "off"):

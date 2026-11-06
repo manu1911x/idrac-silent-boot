@@ -29,7 +29,6 @@ logger = logging.getLogger("silent_boot.controller")
 REGISTERED_DEVICES = {
     "dell_r730xd": "src.devices.dell_r730xd.DellR730xd",
     "mcafee_rmm3": "src.devices.mcafee_rmm3.McAfeeRMM3",
-    "hdmi_monitor": "src.devices.hdmi_monitor.HdmiMonitor",
     "gpio_panel": "src.devices.gpio_panel.GpioPanel",
 }
 
@@ -140,7 +139,6 @@ class ControllerDaemon:
         default_enabled = {
             "dell_r730xd": True,
             "mcafee_rmm3": True,
-            "hdmi_monitor": True,
             "gpio_panel": False,
         }
         for device_key, device_target in REGISTERED_DEVICES.items():
@@ -185,11 +183,7 @@ class ControllerDaemon:
         self.is_manually_shut_down = False
         self._save_persisted_state()
 
-        mon = self.get_device("hdmi_monitor")
-        if mon is not None and hasattr(mon, "evaluate_and_apply"):
-            mon.evaluate_and_apply()
-
-        targets = [d for d in self.active_devices if d.name not in ("hdmi_monitor", "gpio_panel")]
+        targets = [d for d in self.active_devices if d.name != "gpio_panel"]
         if targets:
             with ThreadPoolExecutor(max_workers=len(targets)) as executor:
                 futures = [executor.submit(d.power_on_device) for d in targets]
@@ -206,11 +200,7 @@ class ControllerDaemon:
         self.is_manually_shut_down = True
         self._save_persisted_state()
 
-        mon = self.get_device("hdmi_monitor")
-        if mon is not None:
-            mon.power_off_device()
-
-        targets = [d for d in self.active_devices if d.name not in ("hdmi_monitor", "gpio_panel")]
+        targets = [d for d in self.active_devices if d.name != "gpio_panel"]
         if targets:
             with ThreadPoolExecutor(max_workers=len(targets)) as executor:
                 futures = [executor.submit(d.power_off_device) for d in targets]
@@ -221,18 +211,6 @@ class ControllerDaemon:
                         logger.error(f"Error during power_off_all: {e}")
 
         logger.info("General homelab POWER OFF sequence completed.")
-
-    def set_monitor_power(self, turn_on: bool) -> bool:
-        mon = self.get_device("hdmi_monitor")
-        if mon is None:
-            return False
-        return mon.power_on_device() if turn_on else mon.power_off_device()
-
-    def toggle_monitor(self) -> bool:
-        mon = self.get_device("hdmi_monitor")
-        if mon is None or not hasattr(mon, "toggle_monitor"):
-            return False
-        return mon.toggle_monitor()
 
     def get_system_status(self) -> Dict[str, Any]:
         devices_status = {}
@@ -312,9 +290,6 @@ def run_cli_command(cmd: str) -> int:
         "status": ("GET", "/api/status"),
         "power-on": ("POST", "/api/power/on"),
         "power-off": ("POST", "/api/power/off"),
-        "monitor-on": ("POST", "/api/monitor/on"),
-        "monitor-off": ("POST", "/api/monitor/off"),
-        "monitor-toggle": ("POST", "/api/monitor/toggle"),
     }
 
     if cmd not in routes:

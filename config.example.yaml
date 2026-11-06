@@ -42,14 +42,6 @@ mcafee_rmm3:
   shutdown_timeout_seconds: 120
   force_off_on_timeout: true
 
-hdmi_monitor:
-  enabled: true
-  turn_on_time: "09:00"
-  turn_off_time: "22:00"
-  turn_off_on_system_shutdown: true
-  cec_osd_name: "HomelabPi"
-  verify_hardware_state: true
-
 gpio_panel:
   enabled: false
   button_pull_up: true
@@ -57,7 +49,6 @@ gpio_panel:
   power_toggle_button_pin: 17
   power_on_button_pin: null
   power_off_button_pin: null
-  monitor_toggle_button_pin: 27
   status_led_pin: 22
   alert_led_pin: 23
   lcd:
