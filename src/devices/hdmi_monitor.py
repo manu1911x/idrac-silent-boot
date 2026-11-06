@@ -31,6 +31,8 @@ class HdmiMonitor(BaseDevice):
         self.last_scheduled_state: Optional[bool] = None
         self.manual_override: Optional[bool] = None
         self.last_wayland_socket: Optional[str] = None
+        self.cached_phys_addr: Dict[str, str] = {}
+        self.last_cec_detail: str = "uninitialized"
 
     @staticmethod
     def _parse_time(time_str: str, default: datetime.time) -> datetime.time:
@@ -54,11 +56,11 @@ class HdmiMonitor(BaseDevice):
         configured = self.config.get("cec_device")
         if configured and Path(str(configured)).exists():
             return [str(configured)]
-        devs = sorted(glob.glob("/dev/cec*"))
-        return devs
+        return sorted(glob.glob("/dev/cec*"))
 
     def _ensure_cec_configured(self, cec_dev: str) -> Optional[str]:
         if not shutil.which("cec-ctl"):
+            self.last_cec_detail = "cec-ctl binary not installed (run sudo apt install v4l-utils)"
             return None
         try:
             info = subprocess.run(
@@ -71,27 +73,61 @@ class HdmiMonitor(BaseDevice):
             out = info.stdout
             phys_match = re.search(r"Physical Address\s*:\s*([0-9a-fA-F.]+)", out)
             phys_addr = phys_match.group(1) if phys_match else None
-            if phys_addr == "f.f.f.f":
+
+            if phys_addr and phys_addr != "f.f.f.f":
+                self.cached_phys_addr[cec_dev] = phys_addr
+            else:
                 return None
 
-            if "Logical Address" not in out or "Unregistered" in out or "Not Allocated" in out:
-                subprocess.run(
-                    ["cec-ctl", "-d", cec_dev, "--playback", f"--osd-name={self.cec_osd_name}"],
+            mask_zero = bool(re.search(r"Logical Address Mask\s*:\s*0x0000", out))
+            addrs_zero = bool(re.search(r"Logical Addresses\s*:\s*0\b", out))
+
+            if mask_zero or addrs_zero:
+                cfg_res = subprocess.run(
+                    [
+                        "cec-ctl",
+                        "-d", cec_dev,
+                        "--cec-version-1.4",
+                        "--playback",
+                        f"--osd-name={self.cec_osd_name}"
+                    ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
                     timeout=5
                 )
+                if cfg_res.returncode != 0:
+                    subprocess.run(
+                        [
+                            "cec-ctl",
+                            "-d", cec_dev,
+                            "--playback",
+                            f"--osd-name={self.cec_osd_name}"
+                        ],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=5
+                    )
+
+            self.last_cec_detail = f"{cec_dev} phys={phys_addr}"
             return phys_addr
         except Exception as e:
-            logger.debug(f"CEC configuration check error on {cec_dev}: {e}")
+            self.last_cec_detail = f"cec-ctl error on {cec_dev}: {e}"
+            logger.debug(self.last_cec_detail)
             return None
 
     def get_cec_power_status(self) -> Optional[bool]:
         if not shutil.which("cec-ctl"):
+            self.last_cec_detail = "cec-ctl not found"
             return None
 
-        for cec_dev in self._find_cec_devices():
+        cec_devs = self._find_cec_devices()
+        if not cec_devs:
+            self.last_cec_detail = "no /dev/cec* devices found"
+            return None
+
+        for cec_dev in cec_devs:
             phys_addr = self._ensure_cec_configured(cec_dev)
             if not phys_addr:
                 continue
@@ -104,12 +140,16 @@ class HdmiMonitor(BaseDevice):
                     timeout=5
                 )
                 out = (res.stdout + "\n" + res.stderr).lower()
-                if "pwr-state: on" in out or "in-transition-standby-to-on" in out:
+                if "pwr-state: on" in out or "in-transition-standby-to-on" in out or "(0x00)" in out:
+                    self.last_cec_detail = f"{cec_dev} TV power=on"
                     return True
-                if "pwr-state: standby" in out or "in-transition-on-to-standby" in out:
+                if "pwr-state: standby" in out or "in-transition-on-to-standby" in out or "(0x01)" in out:
+                    self.last_cec_detail = f"{cec_dev} TV power=standby"
                     return False
+                self.last_cec_detail = f"{cec_dev} query output: {out.strip()[:120]}"
             except Exception as e:
-                logger.debug(f"CEC power status query error on {cec_dev}: {e}")
+                self.last_cec_detail = f"{cec_dev} status query exception: {e}"
+                logger.debug(self.last_cec_detail)
 
         return None
 
@@ -129,14 +169,23 @@ class HdmiMonitor(BaseDevice):
                             timeout=6
                         )
                         subprocess.run(
-                            ["cec-ctl", "-d", cec_dev, "--to", "0", f"--active-source", f"phys-addr={phys_addr}"],
+                            ["cec-ctl", "-d", cec_dev, "--to", "0", "--text-view-on"],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            timeout=6
+                        )
+                        subprocess.run(
+                            ["cec-ctl", "-d", cec_dev, "--to", "0", "--active-source", f"phys-addr={phys_addr}"],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             text=True,
                             timeout=6
                         )
                         if res.returncode == 0:
+                            logger.info(f"[HDMI Monitor] Sent CEC image-view-on + active-source ({phys_addr}) via {cec_dev}.")
                             return True
+                        logger.warning(f"[HDMI Monitor] cec-ctl ON failed on {cec_dev}: {res.stderr.strip() or res.stdout.strip()}")
                     else:
                         res = subprocess.run(
                             ["cec-ctl", "-d", cec_dev, "--to", "0", "--standby"],
@@ -146,9 +195,11 @@ class HdmiMonitor(BaseDevice):
                             timeout=6
                         )
                         if res.returncode == 0:
+                            logger.info(f"[HDMI Monitor] Sent CEC standby to TV via {cec_dev}.")
                             return True
+                        logger.warning(f"[HDMI Monitor] cec-ctl standby failed on {cec_dev}: {res.stderr.strip() or res.stdout.strip()}")
                 except Exception as e:
-                    logger.debug(f"cec-ctl command error on {cec_dev}: {e}")
+                    logger.warning(f"[HDMI Monitor] cec-ctl exception on {cec_dev}: {e}")
 
         if shutil.which("cec-client"):
             cmd_str = "on 0\nas\n" if turn_on else "standby 0\n"
@@ -162,6 +213,7 @@ class HdmiMonitor(BaseDevice):
                     timeout=10
                 )
                 if res.returncode == 0:
+                    logger.info(f"[HDMI Monitor] Executed cec-client ({'on 0' if turn_on else 'standby 0'}).")
                     return True
             except Exception as e:
                 logger.debug(f"cec-client execution error: {e}")
@@ -280,26 +332,28 @@ class HdmiMonitor(BaseDevice):
         return success
 
     def _apply_display_power(self, turn_on: bool) -> bool:
+        self._apply_dpms_signal(True)
+        time.sleep(0.3)
+
         if turn_on:
-            dpms_ok = self._apply_dpms_signal(True)
-            time.sleep(0.5)
             cec_ok = self._apply_cec_power(True)
             ddc_ok = False if cec_ok else self._apply_ddc_power(True)
-            success = cec_ok or ddc_ok or dpms_ok
+            success = cec_ok or ddc_ok
         else:
             cec_ok = self._apply_cec_power(False)
             ddc_ok = False if cec_ok else self._apply_ddc_power(False)
-            if not cec_ok and not ddc_ok:
-                dpms_ok = self._apply_dpms_signal(False)
-            else:
-                dpms_ok = True
-            success = cec_ok or ddc_ok or dpms_ok
+            success = cec_ok or ddc_ok
 
         if success:
             state_str = "ON" if turn_on else "OFF"
             if self.current_state != turn_on:
                 logger.info(f"[HDMI Monitor] TV/Monitor hardware turned {state_str} (CEC={cec_ok}).")
             self.current_state = turn_on
+        else:
+            logger.warning(
+                f"[HDMI Monitor] Hardware CEC/DDC command failed for target={'ON' if turn_on else 'OFF'} "
+                f"(detail: {self.last_cec_detail})."
+            )
 
         return success
 
@@ -348,6 +402,7 @@ class HdmiMonitor(BaseDevice):
         logger.info(
             f"[HDMI Monitor] Initialized schedule: ON at {self.turn_on_str}, OFF at {self.turn_off_str}."
         )
+        self._apply_dpms_signal(True)
         self.evaluate_and_apply()
 
     def poll(self) -> None:
@@ -360,6 +415,7 @@ class HdmiMonitor(BaseDevice):
             "name": self.name,
             "power": "on" if effective else ("off" if effective is False else "unknown"),
             "cec_power_status": "on" if hw_state else ("standby" if hw_state is False else "unknown"),
+            "cec_detail": self.last_cec_detail,
             "scheduled_on": self.is_scheduled_on(),
             "turn_on_time": self.turn_on_str,
             "turn_off_time": self.turn_off_str,
