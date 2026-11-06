@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# Script de inicio para Homarr Kiosk en Raspberry Pi OS Bookworm
-# ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Localizar archivo .env
 ENV_FILE=""
 for f in "$BASE_DIR/.env" "/etc/idrac-silent-boot/.env" "$HOME/.env"; do
     if [ -f "$f" ]; then
@@ -23,7 +19,6 @@ if [ -n "$ENV_FILE" ]; then
     fi
 fi
 
-# Detectar comando de Chromium
 CHROME_BIN=""
 for bin in chromium-browser chromium google-chrome; do
     if command -v "$bin" &>/dev/null; then
@@ -33,14 +28,13 @@ for bin in chromium-browser chromium google-chrome; do
 done
 
 if [ -z "$CHROME_BIN" ]; then
-    echo "[ERROR] No se encontró un binario de Chromium/Chrome instalado." >&2
+    echo "Error: Chromium or Chrome binary not found." >&2
     exit 1
 fi
 
 SPLASH_PATH="$SCRIPT_DIR/splash.html"
 TARGET_URL="file://$SPLASH_PATH?url=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$HOMARR_URL" 2>/dev/null || echo "$HOMARR_URL")"
 
-# Opciones de Kiosk optimizadas para Raspberry Pi
 FLAGS=(
     --kiosk
     --noerrdialogs
@@ -58,7 +52,6 @@ FLAGS=(
     --password-store=basic
 )
 
-# Ocultar cursor del mouse tras inactividad si unclutter está instalado
 if command -v unclutter &>/dev/null; then
     unclutter -idle 2 &
 fi

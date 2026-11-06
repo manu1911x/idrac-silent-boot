@@ -1,41 +1,16 @@
-# Configuración de curvas térmicas y parámetros de operación
-# Las credenciales sensibles (IPs, usuarios, contraseñas) van en el archivo .env
-
 general:
-  # Intervalo en segundos del ciclo de lectura de temperatura y ajuste de ventiladores
   poll_interval_seconds: 5
-  
-  # Timeout máximo (en segundos) para esperar a que los BMC (iDRAC y RMM3) respondan en red tras el boot
   bmc_boot_wait_timeout_seconds: 300
-  
-  # Intervalo de reintento (en segundos) mientras se espera a que los BMC respondan
   bmc_probe_interval_seconds: 3
 
 dell_r730xd:
   enabled: true
-  
-  # Velocidad inicial de ventiladores en porcentaje (0-100) aplicada INMEDIATAMENTE
-  # antes de encender el servidor Dell para evitar el ruido de turbina al arrancar.
   initial_fan_speed_percent: 5
-  
-  # Retardo en segundos tras aplicar la velocidad inicial antes de enviar 'chassis power on'
   power_on_delay_seconds: 2
-
-  # Configuración del Watchdog de seguridad:
-  # Si fallan N lecturas consecutivas de temperatura, se restaurará inmediatamente
-  # el control automático de ventiladores gestionado por la BIOS de Dell.
   watchdog:
     max_consecutive_failures: 4
-    # Si la temperatura supera esta temperatura de emergencia, se restaura el control de Dell
     emergency_temp_celsius: 78
-    # Si la temperatura vuelve a bajar de este umbral seguro, se retoma el control manual
     emergency_recovery_celsius: 65
-
-  # Curva de ventiladores: Lista de tramos evaluados de mayor a menor temperatura.
-  # Preset basado en nagaeki adaptado a R730xd con transiciones suaves.
-  # min_temp: temperatura mínima en °C para aplicar este porcentaje.
-  # fan_speed_percent: velocidad del ventilador (0-100%).
-  # 'action': 'manual' para enviar porcentaje hex, o 'dell_auto' para devolver el control al iDRAC.
   fan_curve:
     - min_temp: 75
       action: "manual"
@@ -55,11 +30,8 @@ dell_r730xd:
 
 mcafee_rmm3:
   enabled: true
-  # Intentar encender el firewall si está apagado
   auto_power_on: true
 
 kiosk:
-  # Tiempo de espera antes de verificar Homarr en la pantalla de carga (segundos)
   initial_delay_seconds: 5
-  # Intervalo entre chequeos HTTP a Homarr (segundos)
   check_interval_seconds: 3

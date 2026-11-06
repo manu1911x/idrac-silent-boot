@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Iniciando Homelab Dashboard</title>
+  <title>Starting Homelab Dashboard</title>
   <style>
     * {
       box-sizing: border-box;
@@ -208,23 +208,23 @@
       <div class="icon-server">🖥️</div>
     </div>
 
-    <h1>Iniciando Centro de Control</h1>
+    <h1>Initializing Homelab Dashboard</h1>
     <p class="subtitle">
-      El servidor Dell R730xd se encuentra completando su arranque silencioso.<br>
-      Esperando a que Homarr y los servicios del sistema estén activos.
+      Dell R730xd server is completing its silent boot sequence.<br>
+      Waiting for Homarr and host services to become ready.
     </p>
 
     <div class="badge-card">
       <div class="status-row">
-        <span class="status-label">Destino:</span>
-        <span class="status-value" id="target-url">Cargando...</span>
+        <span class="status-label">Target URL:</span>
+        <span class="status-value" id="target-url">Loading...</span>
       </div>
       <div class="status-row">
-        <span class="status-label">Tiempo transcurrido:</span>
+        <span class="status-label">Elapsed Time:</span>
         <span class="status-value" id="elapsed-time">0s</span>
       </div>
       <div class="status-row">
-        <span class="status-label">Intentos de sondeo:</span>
+        <span class="status-label">Probe Attempts:</span>
         <span class="status-value" id="attempt-count">#0</span>
       </div>
       <div class="progress-bar-container">
@@ -234,17 +234,16 @@
 
     <div class="status-message">
       <span class="dot" id="status-dot"></span>
-      <span id="status-text">Comprobando conexión con el servidor...</span>
+      <span id="status-text">Checking server connectivity...</span>
     </div>
 
     <div class="buttons">
-      <button onclick="checkNow()">Reintentar ahora</button>
-      <button onclick="forceRedirect()">Acceder directamente</button>
+      <button onclick="checkNow()">Retry Now</button>
+      <button onclick="forceRedirect()">Open Directly</button>
     </div>
   </div>
 
   <script>
-    // Obtener la URL de Homarr desde el query param ?url= o usar fallback por defecto
     const urlParams = new URLSearchParams(window.location.search);
     const targetUrl = urlParams.get('url') || 'http://192.168.1.100:7575';
     document.getElementById('target-url').innerText = targetUrl;
@@ -255,7 +254,6 @@
     let pollInterval = 3000;
     let isConnected = false;
 
-    // Contador de tiempo transcurrido
     setInterval(() => {
       secondsElapsed++;
       document.getElementById('elapsed-time').innerText = secondsElapsed + 's';
@@ -265,14 +263,13 @@
       if (isConnected) return;
       attempts++;
       document.getElementById('attempt-count').innerText = '#' + attempts;
-      document.getElementById('status-text').innerText = 'Consultando disponibilidad de Homarr...';
+      document.getElementById('status-text').innerText = 'Querying Homarr availability...';
 
       try {
-        // Usamos mode: 'no-cors' con un timestamp anti-cache para comprobar disponibilidad de puerto
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-        const response = await fetch(targetUrl + '/?_t=' + Date.now(), {
+        await fetch(targetUrl + '/?_t=' + Date.now(), {
           method: 'GET',
           mode: 'no-cors',
           cache: 'no-store',
@@ -280,10 +277,9 @@
         });
         clearTimeout(timeoutId);
 
-        // Si se resolvió la petición (incluso como 'opaque' por no-cors), el servidor está respondiendo!
         onConnected();
       } catch (err) {
-        document.getElementById('status-text').innerText = 'Servidor en arranque. Reintentando en 3s...';
+        document.getElementById('status-text').innerText = 'Server booting. Retrying in 3s...';
         timer = setTimeout(probeHomarr, pollInterval);
       }
     }
@@ -292,7 +288,7 @@
       isConnected = true;
       const dot = document.getElementById('status-dot');
       dot.className = 'dot connected';
-      document.getElementById('status-text').innerText = '¡Homarr detectado en línea! Redirigiendo...';
+      document.getElementById('status-text').innerText = 'Homarr detected online! Redirecting...';
 
       setTimeout(() => {
         window.location.replace(targetUrl);
@@ -308,7 +304,6 @@
       window.location.replace(targetUrl);
     }
 
-    // Iniciar el sondeo tras 3 segundos iniciales
     setTimeout(probeHomarr, 3000);
   </script>
 </body>

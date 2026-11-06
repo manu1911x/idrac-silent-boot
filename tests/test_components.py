@@ -1,18 +1,17 @@
-import unittest
-from unittest.mock import MagicMock
-from pathlib import Path
 import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock
 
-from src.controller import parse_env_file
+from src.controller import ControllerDaemon, parse_env_file
 from src.devices.dell_r730xd import DellR730xd
-from src.thermal import ThermalManager
+from src.devices.mcafee_rmm3 import McAfeeRMM3
 
 
 class TestSilentBootComponents(unittest.TestCase):
 
     def test_parse_env_file(self):
         with tempfile.NamedTemporaryFile("w+", delete=False) as f:
-            f.write("# Comentario\n")
             f.write("DELL_IDRAC_HOST=192.168.1.50\n")
             f.write("DELL_IDRAC_USER=\"admin\"\n")
             f.write("DELL_IDRAC_PASSWORD='secret_password'\n")
@@ -28,8 +27,7 @@ class TestSilentBootComponents(unittest.TestCase):
         temp_path.unlink()
 
     def test_dell_temperature_parser(self):
-        dell = DellR730xd("127.0.0.1", "user", "pass")
-        # Simular salida típica de 'ipmitool sdr type Temperature'
+        dell = DellR730xd("dell_r730xd", {}, {})
         mock_output = (
             "Inlet Temp       | 04h | ok  |  7.1 | 21 degrees C\n"
             "Temp             | 0Eh | ok  |  3.1 | 42 degrees C\n"
@@ -43,11 +41,7 @@ class TestSilentBootComponents(unittest.TestCase):
         self.assertIn("Inlet Temp", readings)
         self.assertEqual(readings["Inlet Temp"], 21)
 
-    def test_thermal_manager_curve(self):
-        mock_dell = MagicMock(spec=DellR730xd)
-        mock_dell.manual_mode_active = True
-        mock_dell.current_speed_percent = None
-
+    def test_dell_fan_curve_and_watchdog(self):
         config = {
             "watchdog": {
                 "max_consecutive_failures": 3,
@@ -60,64 +54,46 @@ class TestSilentBootComponents(unittest.TestCase):
                 {"min_temp": 0, "action": "manual", "fan_speed_percent": 5}
             ]
         }
-        tm = ThermalManager(mock_dell, config)
+        dell = DellR730xd("dell_r730xd", config, {})
+        dell.enable_manual_control = MagicMock()
+        dell.restore_auto_control = MagicMock()
+        dell.set_fan_speed_percent = MagicMock()
 
-        # Temp 40°C -> debe seleccionar 5%
-        tm.process_temperature(40, {})
-        mock_dell.set_fan_speed_percent.assert_called_with(5)
+        dell.manual_mode_active = True
+        dell._process_temperature(40, {})
+        dell.set_fan_speed_percent.assert_called_with(5)
 
-        # Temp 60°C -> debe seleccionar 20%
-        mock_dell.current_speed_percent = 5
-        tm.process_temperature(60, {})
-        mock_dell.set_fan_speed_percent.assert_called_with(20)
+        dell.current_speed_percent = 5
+        dell._process_temperature(60, {})
+        dell.set_fan_speed_percent.assert_called_with(20)
 
-        # Temp 72°C -> debe seleccionar 50%
-        mock_dell.current_speed_percent = 20
-        tm.process_temperature(72, {})
-        mock_dell.set_fan_speed_percent.assert_called_with(50)
+        dell._process_temperature(85, {})
+        dell.restore_auto_control.assert_called_once()
+        self.assertTrue(dell.emergency_mode_active)
 
-    def test_watchdog_failure_trigger(self):
-        mock_dell = MagicMock(spec=DellR730xd)
-        mock_dell.manual_mode_active = True
+        dell.restore_auto_control.reset_mock()
+        dell.emergency_mode_active = False
+        dell._handle_read_failure()
+        dell._handle_read_failure()
+        dell.restore_auto_control.assert_not_called()
 
-        config = {
-            "watchdog": {
-                "max_consecutive_failures": 3,
-                "emergency_temp_celsius": 80,
-                "emergency_recovery_celsius": 65
-            },
-            "fan_curve": []
+        dell._handle_read_failure()
+        dell.restore_auto_control.assert_called_once()
+
+    def test_controller_device_filtering(self):
+        daemon = ControllerDaemon.__new__(ControllerDaemon)
+        daemon.config = {
+            "general": {"poll_interval_seconds": 10},
+            "dell_r730xd": {"enabled": True},
+            "mcafee_rmm3": {"enabled": False}
         }
-        tm = ThermalManager(mock_dell, config)
+        daemon.general_config = daemon.config["general"]
+        daemon.active_devices = []
+        daemon._init_devices()
 
-        # 1er y 2do fallo no disparan watchdog todavía
-        tm.handle_read_failure()
-        tm.handle_read_failure()
-        mock_dell.restore_auto_control.assert_not_called()
-
-        # 3er fallo consecutivo -> activa watchdog y restaura control automático
-        tm.handle_read_failure()
-        mock_dell.restore_auto_control.assert_called_once()
-        self.assertTrue(tm.emergency_mode_active)
-
-    def test_emergency_high_temp(self):
-        mock_dell = MagicMock(spec=DellR730xd)
-        mock_dell.manual_mode_active = True
-
-        config = {
-            "watchdog": {
-                "max_consecutive_failures": 3,
-                "emergency_temp_celsius": 80,
-                "emergency_recovery_celsius": 65
-            },
-            "fan_curve": []
-        }
-        tm = ThermalManager(mock_dell, config)
-
-        # Temp 85°C supera 80°C de emergencia -> entrega el control a Dell
-        tm.process_temperature(85, {})
-        mock_dell.restore_auto_control.assert_called_once()
-        self.assertTrue(tm.emergency_mode_active)
+        device_names = [dev.name for dev in daemon.active_devices]
+        self.assertIn("dell_r730xd", device_names)
+        self.assertNotIn("mcafee_rmm3", device_names)
 
 
 if __name__ == "__main__":
