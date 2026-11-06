@@ -101,6 +101,13 @@ class TestSilentBootComponents(unittest.TestCase):
         self.assertFalse(mon.is_scheduled_on(datetime.time(22, 0)))
         self.assertFalse(mon.is_scheduled_on(datetime.time(23, 45)))
 
+        mon.is_scheduled_on = MagicMock(return_value=True)
+        mon.get_cec_power_status = MagicMock(return_value=False)
+        mon._apply_display_power = MagicMock(return_value=True)
+        mon.current_state = True
+        mon.evaluate_and_apply()
+        mon._apply_display_power.assert_called_once_with(True)
+
     def test_controller_device_filtering(self):
         daemon = ControllerDaemon.__new__(ControllerDaemon)
         daemon.config = {

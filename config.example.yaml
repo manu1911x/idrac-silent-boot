@@ -47,6 +47,8 @@ hdmi_monitor:
   turn_on_time: "09:00"
   turn_off_time: "22:00"
   turn_off_on_system_shutdown: true
+  cec_osd_name: "HomelabPi"
+  verify_hardware_state: true
 
 gpio_panel:
   enabled: false
